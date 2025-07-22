@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Barrier Bingo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Alegreya&family=Pacifico&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #DCDDC3;
+      --card-bg: #fff7f0;
+      --accent: #97987A;
+      --accent-dark: #97987A;
+      --text: #4a3f35;
+      --hover-shadow: rgba(0, 0, 0, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Alegreya', serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    h2 {
+      font-family: 'Alegreya';
+      color: var(--accent-dark);
+      margin-bottom: 20px;
+      font-size: 3em;
+      text-shadow: 1px 1px 2px var(--hover-shadow);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 15px;
+      background: var(--card-bg);
+      padding: 30px;
+      border-radius: 12px;
+      max-width: 1000px;
+      width: 100%;
+      box-shadow: 0 4px 10px var(--hover-shadow);
+    }
+    .cell {
+      background: #fff;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      padding: 15px;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+      position: relative;
+    }
+    .cell:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 8px 16px var(--hover-shadow);
+      background: var(--card-bg);
+    }
+    .cell.selected {
+      background: var(--accent);
+      color: #fff;
+    }
+    /* Make the vote count white when selected */
+    .cell.selected .count {
+      color: #fff;
+    }
+    .cell .label {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px;
+    }
+    .cell .count {
+      font-size: 0.9em;
+      color: var(--accent-dark);
+    }
+    button {
+      margin-top: 30px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 15px 40px;
+      font-size: 1.1em;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 8px var(--hover-shadow);
+    }
+    button:hover {
+      background: var(--accent-dark);
+      box-shadow: 0 6px 12px var(--hover-shadow);
+    }
+    #thankyou {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 30px;
+    }
+    #thankyou h3 {
+      font-family: 'Pacifico', cursive;
+      color: var(--accent-dark);
+      margin-bottom: 20px;
+      font-size: 2em;
+      text-shadow: 1px 1px 2px var(--hover-shadow);
+    }
+    #thankyou p {
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+    textarea {
+      width: 100%;
+      max-width: 500px;
+      height: 120px;
+      font-family: 'Alegreya', serif;
+      font-size: 1em;
+      padding: 12px;
+      border: 2px solid var(--accent);
+      border-radius: 6px;
+      resize: vertical;
+      margin-bottom: 20px;
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <h2>Barrier Bingo</h2>
+  <div class="grid" id="grid"></div>
+  <button onclick="submitSelections()" style="font-family: 'Alegreya Serif', serif;">Submit</button>
+
+  <div id="thankyou">
+    <h2>🎉 Thanks for submitting!</h2>
+    <p>Any other barriers we missed?</p>
+    <textarea id="otherBarrierInput" placeholder="Type here..."></textarea>
+    <button onclick="submitOtherBarrier()">Submit Additional Barrier</button>
+  </div>
+
+  <script>
+    // Initialize Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyC4J0OqA2g4GnE__3MsE6Ekk8F67jX500M",
+      authDomain: "barrier-bingo.firebaseapp.com",
+      projectId: "barrier-bingo",
+      storageBucket: "barrier-bingo.firebasestorage.app",
+      messagingSenderId: "741462116406",
+      appId: "1:741462116406:web:261185827d04d329b97097",
+      measurementId: "G-170LNLSJ9S"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Barrier list
+    const barriers = [
+      "Can’t afford unpaid or low-paid jobs",
+      "Don’t have reliable transportation",
+      "No access to a quiet space or good internet for remote work",
+      "Experience requires full-time hours I can’t manage",
+      "I have family or caregiving responsibilities that limit when or where I can work",
+      "I’m worried about meeting academic deadlines if I take on a work experience",
+      "Unsure of what accomodations I need",
+      "Imposter syndrome - felt like I wasn't qualified enough",
+      "Nervous about networking or talking to professionals",
+      "Faced discrimination",
+      "Never got the chance to ask questions about career path",
+      "Unsure of what careers are possible with my studies",
+      "Visa, permit, or graduate-funding rules limit my eligibility for certain roles.",
+      "Worried that my accent or language would be judged",
+      "Application system was hard to navigate",
+      "Mental health or a disability made it hard to work or apply"
+    ];
+
+    const grid = document.getElementById('grid');
+    const selected = new Set();
+
+    // Build grid
+    barriers.forEach(barrier => {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.innerHTML = `
+        <div class="label">${barrier}</div>
+      `;
+      cell.onclick = () => {
+        if (selected.has(barrier)) {
+          selected.delete(barrier);
+          cell.classList.remove('selected');
+        } else {
+          selected.add(barrier);
+          cell.classList.add('selected');
+        }
+      };
+      grid.appendChild(cell);
+
+      // Real-time count listener
+      const docRef = db.collection('barrierVotes').doc(barrier);
+      docRef.onSnapshot(doc => {
+        const data = doc.data();
+        const count = data && data.count ? data.count : 0;
+        cell.querySelector('.count').textContent = count;
+      });
+    });
+
+    // Submit selected barriers
+    async function submitSelections() {
+      if (selected.size === 0) return alert('Please select at least one barrier.');
+      const batch = db.batch();
+      selected.forEach(barrier => {
+        const ref = db.collection('barrierVotes').doc(barrier);
+        batch.set(ref, { count: firebase.firestore.FieldValue.increment(1) }, { merge: true });
+      });
+      await batch.commit();
+
+      // Swap to thank-you view
+      document.querySelector('h2').style.display = 'none';
+      grid.style.display = 'none';
+      document.querySelector('button').style.display = 'none';
+      document.getElementById('thankyou').style.display = 'flex';
+    }
+
+    // Submit an "other" barrier
+    async function submitOtherBarrier() {
+      const text = document.getElementById('otherBarrierInput').value.trim();
+      if (!text) return alert('Please type a barrier before submitting.');
+      await db.collection('otherBarriers').add({
+        text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      alert("Thanks! Your additional barrier was submitted.");
+      document.getElementById('otherBarrierInput').value = '';
+    }
+  </script>
+
+</body>
+</html>
